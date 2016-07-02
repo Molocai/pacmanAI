@@ -39,8 +39,8 @@ public class GhostMove : MonoBehaviour {
 	private float timeToEndScatter;
 	private float timeToEndWait;
 
-	enum State { Wait, Init, Scatter, Chase, Run };
-	State state;
+	public enum State { Wait, Init, Scatter, Chase, Run };
+	public State state;
 
     private Vector3 _startPos;
     private float _timeToWhite;
@@ -119,20 +119,54 @@ public class GhostMove : MonoBehaviour {
         if (CurrentTile != newTile)
         {
             CurrentTile.isDangerous = false;
-            //foreach (TileManager.Tile t in neighbors)
-            //    t.isDangerous = false;
-            //neighbors.Clear();
+            CurrentTile.ghostOn = null;
+            foreach (TileManager.Tile t in neighbors)
+            {
+                if (t != null)
+                {
+                    t.isDangerous = false;
+                    t.ghostOn = null;
+                }
+            }
+            neighbors.Clear();
 
             CurrentTile = newTile;
 
-            CurrentTile.isDangerous = true;
+            if (state != State.Run)
+            {
+                CurrentTile.isDangerous = true;
+                CurrentTile.ghostOn = this;
+            }
             //if (CurrentTile.up != null) neighbors.Add(CurrentTile.up);
             //if (CurrentTile.down != null) neighbors.Add(CurrentTile.down);
             //if (CurrentTile.left != null) neighbors.Add(CurrentTile.left);
             //if (CurrentTile.right != null) neighbors.Add(CurrentTile.right);
 
-            //foreach (TileManager.Tile t in neighbors)
-            //    t.isDangerous = true;
+            int i = 0;
+            TileManager.Tile tmp = CurrentTile;
+
+            while (tmp != null && i <= 2)
+            {
+                if (direction == Vector3.up)
+                    tmp = tmp.up;
+                if (direction == Vector3.down)
+                    tmp = tmp.down;
+                if (direction == Vector3.left)
+                    tmp = tmp.left;
+                if (direction == Vector3.right)
+                    tmp = tmp.right;
+                i++;
+                neighbors.Add(tmp);
+            }
+
+            foreach (TileManager.Tile t in neighbors)
+            {
+                if (t != null && state != State.Run)
+                {
+                    t.isDangerous = true;
+                    t.ghostOn = this;
+                }
+            }
         }
     }
 

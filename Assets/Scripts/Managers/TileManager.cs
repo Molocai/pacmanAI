@@ -13,14 +13,16 @@ public class TileManager : MonoBehaviour {
 		public int adjacentCount {get; set;}
 		public bool isIntersection {get; set;}
         public bool hasPacdot { get; set; }
+        public bool hasPacgum { get; set; }
         public bool isDangerous { get; set; }
+        public GhostMove ghostOn { get; set; }
 		
 		public Tile left,right,up,down;
 		
 		public Tile(int x_in, int y_in)
 		{
 			x = x_in; y = y_in;
-			occupied = hasPacdot = isDangerous = false;
+			occupied = hasPacdot = hasPacgum = isDangerous = false;
 			left = right = up = down = null;
 		}
 
@@ -29,9 +31,10 @@ public class TileManager : MonoBehaviour {
 	
 	public List<Tile> tiles = new List<Tile>();
     public GameObject PacdotPrefab;
-	
-	// Use this for initialization
-	void Start () 
+    public GameObject PacgumPrefab;
+
+    // Use this for initialization
+    void Start () 
 	{
         ReadTiles();
 
@@ -43,9 +46,15 @@ public class TileManager : MonoBehaviour {
                 GameObject dot = GameObject.Instantiate(PacdotPrefab, new Vector3(t.x, t.y), Quaternion.identity) as GameObject;
                 t.hasPacdot = true;
                 dot.GetComponent<Pacdot>().tile = t;
+
+                if ((t.x == 25 && t.y == 8) || (t.x == 4 && t.y == 8) || (t.x == 25 && t.y == 26) || (t.x == 4 && t.y == 26))
+                {
+                    GameObject gum = GameObject.Instantiate(PacgumPrefab, new Vector3(t.x, t.y), Quaternion.identity) as GameObject;
+                    t.hasPacgum = true;
+                    gum.GetComponent<Energizer>().tile = t;
+                }
             }
         }
-
 	}
 
     // Update is called once per frame
@@ -316,6 +325,10 @@ public class TileManager : MonoBehaviour {
         // Reverse la liste
         path.Reverse();
 
+        // On enlève le premier qui correspond au tile sur lequel on se tient
+        //if (path[0] == start)
+        //    path.RemoveAt(0);
+
         // Tant pis pour les perf on s'en fiche pour l'instant
         return new Queue<Tile>(path);
     }
@@ -353,6 +366,11 @@ public class TileManager : MonoBehaviour {
                 t = t.right;
                 break;
         }
+
+        // Il est arrivé que t soit null pour une raison que j'ignore
+        // dans ce cas là on retourne le corridor avec juste le tile actuel
+        if (t == null)
+            return corridor;
 
         // Tant qu'on a pas atteint une intersection ou qu'on a pas dépassé maxDepth on avance
         while (!t.isIntersection && curDepth < maxDepth - 1)

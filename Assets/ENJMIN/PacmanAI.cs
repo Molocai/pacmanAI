@@ -127,6 +127,9 @@ public class PacmanAI : MonoBehaviour
         CurrentTile = Tiles[Manager.Index((int)CurrentPos.x, (int)CurrentPos.y)];
     }
 
+    /// <summary>
+    /// L'état initial. Permet à pacman de choisir une direction au lancement du jeu
+    /// </summary>
     void AI_InitialState()
     {
         if (Random.Range(0f, 1f) > 0.5)
@@ -137,6 +140,9 @@ public class PacmanAI : MonoBehaviour
         Brain.SetState(AI_MovingToNextTile);
     }
 
+    /// <summary>
+    /// Etat pendant lequel pacman se déplace d'un tile à un autre
+    /// </summary>
     void AI_MovingToNextTile()
     {
         if (NextTile == null)
@@ -152,18 +158,21 @@ public class PacmanAI : MonoBehaviour
             if (Waypoints.Count > 0)
             {
                 NextTile = Waypoints.Dequeue();
+                // Si on est déjà sur le nextTile passer au suivant
+                while (NextTile == CurrentTile)
+                    NextTile = Waypoints.Dequeue();
 
                 // A changer
                 List<TileManager.Tile> wp = new List<TileManager.Tile>(Waypoints);
-                // On vérifie si un ghost ne s'est pas mis sur notre chemin
+                // On vérifie si un ghost ne s'est pas mis sur le reste du chemin
                 foreach(TileManager.Tile t in wp)
                 {
                     // Si c'est le cas on annule tout et on cherche un autre chemin
                     if (t.isDangerous)
                     {
-                        Brain.SetState(AI_DecideDirection);
                         Waypoints.Clear();
                         NextTile = null;
+                        Brain.SetState(AI_DecideDirection);
                         break;
                     }
                 }
@@ -174,6 +183,7 @@ public class PacmanAI : MonoBehaviour
             {
                 NextTile = null;
                 // Si on arrive à une intersection, choisir une direction
+                // On devrait toujours rentrer dans ce if normalement
                 if (CurrentTile.isIntersection)
                     Brain.SetState(AI_DecideDirection);
             }
@@ -185,52 +195,82 @@ public class PacmanAI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Pacman choisi une direction
+    /// </summary>
     void AI_DecideDirection()
     {
-        // Si le prochain tile est déjà défini, s'y déplacer
-        if (NextTile != null)
+        try
         {
-            Brain.SetState(AI_MovingToNextTile);
-            return;
+            // Si le prochain tile est déjà défini, on quitte cet état
+            // Se déplacer vers le tile
+            if (NextTile != null)
+            {
+                Brain.SetState(AI_MovingToNextTile);
+                return;
+            }
+
+            // Dictionnaire qui, pour une direction, associe une valeur
+            Dictionary<TileManager.TILEDIRECTION, int> nextChoice = new Dictionary<TileManager.TILEDIRECTION, int>();
+
+            // Calcul des différentes valeurs de chemin
+            if (CurrentTile.up != null)
+                nextChoice[TileManager.TILEDIRECTION.UP] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.up, TileManager.TILEDIRECTION.UP));
+
+            if (CurrentTile.right != null)
+                nextChoice[TileManager.TILEDIRECTION.RIGHT] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.right, TileManager.TILEDIRECTION.RIGHT));
+
+            if (CurrentTile.down != null)
+                nextChoice[TileManager.TILEDIRECTION.DOWN] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.down, TileManager.TILEDIRECTION.DOWN));
+
+            if (CurrentTile.left != null)
+                nextChoice[TileManager.TILEDIRECTION.LEFT] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.left, TileManager.TILEDIRECTION.LEFT));
+
+            // On tri par ordre décroissant
+            IOrderedEnumerable<KeyValuePair<TileManager.TILEDIRECTION, int>> ordered = from pair in nextChoice orderby pair.Value descending select pair;
+
+            // Quelle direction a le plus de value?
+            switch (ordered.ElementAt(0).Key)
+            {
+                case TileManager.TILEDIRECTION.UP:
+                    NextTile = CurrentTile.up;
+                    break;
+                case TileManager.TILEDIRECTION.RIGHT:
+                    NextTile = CurrentTile.right;
+                    break;
+                case TileManager.TILEDIRECTION.DOWN:
+                    NextTile = CurrentTile.down;
+                    break;
+                case TileManager.TILEDIRECTION.LEFT:
+                    NextTile = CurrentTile.left;
+                    break;
+            }
+
+
+            // Si le meilleur chemin a une value très faible alors on cherche un autre endroit où aller
+            // avec le pathfinding
+            if (ordered.ElementAt(0).Value <= 0)
+            {
+                //Debug.Log("Using path finding");
+                // On met à jour le debug pour qu'il s'affiche
+                debug_corridor = new List<TileManager.Tile>(Waypoints);
+                // On met à jour la liste des waypoints à emprunter (en utilisant le PF)
+                Waypoints = TileManager.GetPathTo(CurrentTile, Manager.GetClosestTileWithPacdot(CurrentTile));
+            }
+            // Sinon
+            else
+            {
+                // On met à jour le debug pour qu'il s'affiche
+                debug_corridor = TileManager.GetCorridor(NextTile, ordered.First().Key);
+                // On met à jour la liste des waypoints à emprunter
+                Waypoints = new Queue<TileManager.Tile>(TileManager.GetCorridor(NextTile, ordered.First().Key));
+            }
         }
-
-        Dictionary<TileManager.TILEDIRECTION, int> nextChoice = new Dictionary<TileManager.TILEDIRECTION, int>();
-
-        // Calcul des différentes valeurs de chemin
-        if (CurrentTile.up != null)
-            nextChoice[TileManager.TILEDIRECTION.UP] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.up, TileManager.TILEDIRECTION.UP));
-
-        if (CurrentTile.right != null)
-            nextChoice[TileManager.TILEDIRECTION.RIGHT] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.right, TileManager.TILEDIRECTION.RIGHT));
-
-        if (CurrentTile.down != null)
-            nextChoice[TileManager.TILEDIRECTION.DOWN] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.down, TileManager.TILEDIRECTION.DOWN));
-
-        if (CurrentTile.left != null)
-            nextChoice[TileManager.TILEDIRECTION.LEFT] = EvaluateCorridor(TileManager.GetCorridor(CurrentTile.left, TileManager.TILEDIRECTION.LEFT));
-
-        // On tri par ordre décroissant
-        IOrderedEnumerable<KeyValuePair<TileManager.TILEDIRECTION, int>> ordered = from pair in nextChoice orderby pair.Value descending select pair;
-
-        // Quelle direction a le plus de value
-        switch(ordered.ElementAt(0).Key)
+        catch (KeyNotFoundException e)
         {
-            case TileManager.TILEDIRECTION.UP:
-                NextTile = CurrentTile.up;
-                break;
-            case TileManager.TILEDIRECTION.RIGHT:
-                NextTile = CurrentTile.right;
-                break;
-            case TileManager.TILEDIRECTION.DOWN:
-                NextTile = CurrentTile.down;
-                break;
-            case TileManager.TILEDIRECTION.LEFT:
-                NextTile = CurrentTile.left;
-                break;
+            Debug.LogError("IA PACMAN ERROR: " + e.Message, this);
+            //Debug.Break();
         }
-
-        debug_corridor = TileManager.GetCorridor(NextTile, ordered.First().Key);
-        Waypoints = new Queue<TileManager.Tile>(TileManager.GetCorridor(NextTile, ordered.First().Key));
     }
 
     /// <summary>
@@ -257,6 +297,7 @@ public class PacmanAI : MonoBehaviour
         {
             if (t.hasPacdot) value += 1;
             if (t.isDangerous) value -= 10;
+            if (t.ghostOn != null && t.ghostOn.state == GhostMove.State.Run) value += 200;
         }
 
         return value;

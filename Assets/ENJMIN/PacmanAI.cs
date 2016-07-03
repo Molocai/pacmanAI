@@ -132,6 +132,9 @@ public class PacmanAI : MonoBehaviour
     /// </summary>
     void AI_InitialState()
     {
+        //Waypoints = TileManager.GetPathTo(CurrentTile, Manager.GetTile(2, 30));
+        //NextTile = Waypoints.Dequeue();
+
         if (Random.Range(0f, 1f) > 0.5)
             NextTile = CurrentTile.right;
         else
